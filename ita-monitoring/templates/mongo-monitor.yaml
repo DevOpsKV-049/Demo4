@@ -1,0 +1,51 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "ita-monitoring.fullname" . }}
+  namespace: default
+  labels:
+    release: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ include "ita-monitoring.name" . }}
+    helm.sh/chart: {{ include "ita-monitoring.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  endpoints:
+  - interval: 30s
+    port: metrics
+  jobLabel: {{ template "ita-monitoring.fullname" . }}
+  namespaceSelector:
+    matchNames:
+    - "default"
+  selector:
+    matchLabels:
+      app: mongo
+  # targetLabels:
+  # - release
+  endpoints:
+  - port: metrics
+    interval: 15s
+    honorLabels: true
+    path: /metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-metrics-exporter
+  namespace: default
+  labels:
+    app: mongo
+    release: {{ .Release.Name }}
+    app.kubernetes.io/name: {{ include "ita-monitoring.name" . }}
+    helm.sh/chart: {{ include "ita-monitoring.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  clusterIP: None
+  selector:
+    app: mongo
+  ports:
+  - name: metrics
+    port: 9216
+    protocol: TCP
+    targetPort: 9216

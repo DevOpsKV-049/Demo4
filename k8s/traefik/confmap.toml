@@ -1,0 +1,80 @@
+    [Global]
+      sendAnonymousUsage = true
+      debug = true
+      logLevel = "DEBUG"
+
+    [entrypoints]
+      [entrypoints.web]
+          address = ":80"
+      [entryPoints.web-secure]
+          address = ":443"
+      [entrypoints.tf-port]
+          address = ":9000"
+      
+
+    [providers]
+      [providers.file]
+
+
+    [tcp] # YAY!
+      [tcp.routers]
+          [tcp.routers.everything-to-tensor]
+            entrypoints = ["tf-port"]
+            rule = "HostSNI(`*`)"
+            service = "tf"
+
+      [tcp.services]
+        [tcp.services.tf.LoadBalancer]
+          [[tcp.services.tf.LoadBalancer.servers]]
+            address = "tf.default.svc:9000"
+
+    [http] # yakscho ne ide - pribrati
+      [http.routers]
+        [http.routers.for-jupyterx-https]
+          entryPoints = ["web-secure"] # won't listen to entrypoint mongo-port
+          # rule = "Host(`clients-ui.ddns.net`)"
+          # rule = "Path(`/jupyterx`)" # abo /jupyterx/*
+          rule = "PathPrefix(`/jupyterx`)"
+          service = "jupyterx"
+          [http.routers.for-jupyterx-https.tls]
+
+        [http.routers.for-jupyterx-http]
+          entryPoints = ["web"] # won't listen to entrypoint mongo-port
+          rule = "PathPrefix(`/jupyterx`)"
+          service = "jupyterx"
+
+        [http.routers.for-grafana-https]
+          entryPoints = ["web-secure"] # won't listen to entrypoint mongo-port
+          rule = "PathPrefix(`/grafana`)"
+          Middlewares = ["cut-subpath"]
+          service = "grafana"
+          [http.routers.for-grafana-https.tls]
+
+        [http.routers.for-grafana-http]
+          entryPoints = ["web"] # won't listen to entrypoint mongo-port
+          rule = "PathPrefix(`/grafana`)"
+          Middlewares = ["cut-subpath"]
+          service = "grafana"
+
+      [http.middlewares]
+       [http.middlewares.cut-subpath.StripPrefix]
+          prefixes = ["/grafana"]
+
+      [http.services]
+        [http.services.jupyterx.LoadBalancer]
+        PassHostHeader = true
+        [[http.services.jupyterx.LoadBalancer.servers]]
+        url = "http://jupyter-service.default.svc/"
+        weight = 100
+        
+        [http.services.grafana.LoadBalancer]
+        PassHostHeader = true
+        [[http.services.grafana.LoadBalancer.servers]]
+        url = "http://monitoring-grafana.monitoring.svc/"
+        weight = 100
+
+    [tlsStores]
+     [tlsStores.default]
+       [tlsStores.default.defaultCertificate]
+         certFile = "/ssl/tls.crt"
+         keyFile  = "/ssl/tls.key"
